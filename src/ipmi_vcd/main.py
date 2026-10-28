@@ -42,6 +42,10 @@ def main() -> None:
     password = os.getenv("IPMI_PASSWORD")
     if not username or not password:
         raise SystemExit("IPMI_USERNAME and IPMI_PASSWORD must be set")
+    if len(username.encode()) > 16:
+        raise SystemExit("IPMI_USERNAME must be at most 16 bytes")
+    if len(password.encode()) > 20:
+        raise SystemExit("IPMI_PASSWORD must be at most 20 bytes")
 
     backend = VcdBackend(config.vcd)
     metrics = Metrics()

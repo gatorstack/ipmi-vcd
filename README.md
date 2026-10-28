@@ -51,6 +51,10 @@ boot order. Поэтому команда IPMI `set boot device` принима�
 - `VCD_USER`, `VCD_PASSWORD` — basic login в VCD; либо `VCD_TOKEN` и
   `VCD_AUTH_TYPE=jwt`.
 
+Ограничения IPMI 2.0: username не длиннее 16 байт, password — 20 байт. Сервис
+завершает запуск с ошибкой при более длинных значениях, чтобы `ipmitool` и
+Ironic не получили endpoint, к которому невозможно войти.
+
 VCD template должен содержать ровно одну VM, один сетевой адаптер и локальный
 диск достаточного размера. Guest customization в template должен быть выключен.
 

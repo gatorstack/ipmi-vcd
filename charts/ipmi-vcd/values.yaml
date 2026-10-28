@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/gatorstack/ipmi-vcd
-  tag: "0.1.0"
+  tag: "0.1.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
