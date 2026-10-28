@@ -3,5 +3,5 @@ name: ipmi-vcd
 description: Laboratory IPMI endpoints backed by VMware Cloud Director VMs
 type: application
 version: 0.1.7
-appVersion: "0.1.6"
+appVersion: "0.1.7"
 

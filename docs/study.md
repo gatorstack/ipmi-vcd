@@ -6,7 +6,7 @@ Template `Ironic PXE blank 20GiB` в catalog `ipmi-vcd` содержит одн�
 x86_64 VM, один VMXNET3 на `wireguard-net` и пустой локальный диск 20 GiB.
 До deploy BIOS не находит ОС на диске и переходит к PXE; после записи образа
 загружается локальный диск. Перед повторным deploy адаптер заменяет этот диск
-пустым диском из template по команде Ironic `set boot device network`. Десять VM
+пустым диском из template по команде Ironic `set boot device network`. Двадцать VM
 не создаются при установке сервиса: каждая появляется только после power-on
 своего endpoint.
 
@@ -33,14 +33,15 @@ mode `RELAY`, а Edge DHCP forwarder направляет запросы тол�
 
 | Регион | Controller | DHCP pool | MAC allowlist |
 |---|---|---|---|
-| ru-msk | `10.10.0.17` | `10.10.0.90–10.10.0.94` | `ironic_dhcp_hosts` |
-| ru-spb | `10.10.0.20` | `10.10.0.95–10.10.0.99` | `ironic_dhcp_hosts` |
+| ru-msk | `10.10.0.17` | назначается из server port | `ironic_dhcp_hosts` |
+| ru-spb | `10.10.0.20` | назначается из server port | `ironic_dhcp_hosts` |
 
 В каждом `ironic_dhcp_hosts` обязательна wildcard-запись `ignore` и точная
-запись `MAC,IP` для каждого зарегистрированного узла. Неизвестные VM и MAC
-другого региона игнорируются. Neutron network `ironic-cleaning` использует
-`10.10.0.0/24`, соответствующий региональный pool, gateway `10.10.0.1` и
-выключенный DHCP.
+запись `MAC,IP` для каждого выделенного узла. Региональный reconciler получает
+выбранный Ironic node и fixed IP server port из OpenStack и атомарно обновляет
+эту запись до PXE DHCP. Неизвестные VM, свободные узлы и MAC другого региона
+игнорируются. Neutron network `ironic-cleaning` использует `10.10.0.0/24`,
+gateway `10.10.0.1` и выключенный DHCP.
 
 Kolla по умолчанию направляет второй этап iPXE на inspection script. Для deploy
 создайте `/etc/kolla/config/ironic/ipa.ipxe`:
@@ -61,11 +62,13 @@ openstack baremetal conductor list
 openstack endpoint list --service ironic
 ```
 
-## 4. Зарегистрировать тестовый узел
+## 4. Зарегистрировать пул
 
-В `ru-msk` используйте endpoint `ru-msk-bm-01:6230`, в `ru-spb` —
-`ru-spb-bm-01:6240`. При создании передайте `--management-interface ipmitool` и
-resource class соответствующего профиля.
+В `ru-msk` зарегистрируйте `ru-msk-bm-01..10` на портах `6230..6239`, в
+`ru-spb` — `ru-spb-bm-01..10` на портах `6240..6249`. Узлы `01..05` используют
+профиль `8-16`, узлы `06..10` — `16-32`. При создании передайте
+`--management-interface ipmitool`, resource class соответствующего профиля и
+декларативный MAC endpoint. Регистрация не вызывает power-on и не создаёт VM.
 
 Проверка без PXE:
 
@@ -79,9 +82,9 @@ openstack baremetal node show <node> -f yaml
 Успех подтверждается одновременно состоянием `power on` в Ironic, созданной VM
 в VCD и метрикой `ipmi_vcd_operations_total`.
 
-После первого power-on получите MAC созданной VCD VM, создайте Ironic port и
-добавьте тот же MAC с выбранным IP в allowlist регионального dnsmasq. Fixed IP
-Nova/Neutron port должен совпадать с этой записью. Перед выдачей пользователю
+Ironic port создаётся сразу с декларативным MAC. После назначения Nova server
+региональный DHCP reconciler связывает этот MAC с fixed IP Nova/Neutron port.
+Перед выдачей пользователю
 проверьте `DHCPACK`, heartbeat IPA, состояние Ironic `active`, Nova `ACTIVE` и
 загрузку ОС с локального диска.
 

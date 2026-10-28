@@ -34,6 +34,7 @@ def test_health_and_inventory() -> None:
                     "name": "ru-msk-bm-01",
                     "profile": "8-16",
                     "port": 6230,
+                    "macAddress": None,
                     "provisioning": False,
                     "bootDevice": "default",
                 }

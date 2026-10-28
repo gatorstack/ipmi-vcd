@@ -2,7 +2,7 @@
 
 ## Цель
 
-Дать двум учебным регионам OpenStack `ru-msk` и `ru-spb` по пять стабильных IPMI
+Дать двум учебным регионам OpenStack `ru-msk` и `ru-spb` по десять стабильных IPMI
 endpoint, за которыми лениво создаются VM в VCD. OpenStack использует штатный
 Ironic hardware type `ipmi` и не знает о VCD.
 
@@ -23,12 +23,15 @@ Ironic hardware type `ipmi` и не знает о VCD.
 9. `set boot device network` делает следующий `power on` одноразовой подготовкой
    PXE: системный диск выключенной существующей VM заменяется пустым диском из
    template; остальные power-операции содержимое диска не меняют.
+10. Каждый endpoint имеет заранее назначенный уникальный MAC. Ironic port и
+    DHCP allowlist поэтому создаются до VCD VM, а адаптер применяет этот MAC
+    после ленивого клонирования и до первого power-on.
 
 ## Профили и пул
 
-- пять узлов профиля `8-16`: 8 vCPU, 16 GiB RAM;
-- пять узлов профиля `16-32`: 16 vCPU, 32 GiB RAM;
-- пять endpoint выделено `ru-msk`, пять — `ru-spb`.
+- десять узлов профиля `8-16`: по пять в каждом регионе, 8 vCPU и 16 GiB RAM;
+- десять узлов профиля `16-32`: по пять в каждом регионе, 16 vCPU и 32 GiB RAM;
+- десять endpoint выделено `ru-msk`, десять — `ru-spb`.
 
 Размер пустого локального диска наследуется от VCD template. При первом deploy
 он создаётся вместе с VM, а перед повторным deploy заменяет диск предыдущего
@@ -48,7 +51,7 @@ bare-metal template и гарантирует PXE fallback без удалени
 
 - unit tests проверяют YAML, уникальность портов, асинхронный power-on и
   одноразовую подготовку PXE;
-- Helm chart рендерит десять уникальных UDP Service ports;
+- Helm chart рендерит двадцать уникальных UDP Service ports;
 - контейнер запускается без root и не содержит credentials;
 - `ipmitool` получает power state от развернутого endpoint;
 - в каждом регионе Ironic создаётся хотя бы один узел, driver validation видит

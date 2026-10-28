@@ -73,6 +73,7 @@ class ApiServer:
                                     "name": item.node.name,
                                     "profile": item.profile.name,
                                     "port": item.node.port,
+                                    "macAddress": item.node.mac_address,
                                     "provisioning": item.provisioning(),
                                     "bootDevice": item.get_boot_device(),
                                 }

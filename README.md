@@ -19,13 +19,23 @@ Ironic не выбирает профиль и не создаёт IPMI endpoint
 | `ru-msk-bm-01` | ru-msk | 6230 | 8 vCPU / 16 GiB |
 | `ru-msk-bm-02` | ru-msk | 6231 | 8 vCPU / 16 GiB |
 | `ru-msk-bm-03` | ru-msk | 6232 | 8 vCPU / 16 GiB |
-| `ru-msk-bm-04` | ru-msk | 6233 | 16 vCPU / 32 GiB |
-| `ru-msk-bm-05` | ru-msk | 6234 | 16 vCPU / 32 GiB |
+| `ru-msk-bm-04` | ru-msk | 6233 | 8 vCPU / 16 GiB |
+| `ru-msk-bm-05` | ru-msk | 6234 | 8 vCPU / 16 GiB |
+| `ru-msk-bm-06` | ru-msk | 6235 | 16 vCPU / 32 GiB |
+| `ru-msk-bm-07` | ru-msk | 6236 | 16 vCPU / 32 GiB |
+| `ru-msk-bm-08` | ru-msk | 6237 | 16 vCPU / 32 GiB |
+| `ru-msk-bm-09` | ru-msk | 6238 | 16 vCPU / 32 GiB |
+| `ru-msk-bm-10` | ru-msk | 6239 | 16 vCPU / 32 GiB |
 | `ru-spb-bm-01` | ru-spb | 6240 | 8 vCPU / 16 GiB |
 | `ru-spb-bm-02` | ru-spb | 6241 | 8 vCPU / 16 GiB |
-| `ru-spb-bm-03` | ru-spb | 6242 | 16 vCPU / 32 GiB |
-| `ru-spb-bm-04` | ru-spb | 6243 | 16 vCPU / 32 GiB |
-| `ru-spb-bm-05` | ru-spb | 6244 | 16 vCPU / 32 GiB |
+| `ru-spb-bm-03` | ru-spb | 6242 | 8 vCPU / 16 GiB |
+| `ru-spb-bm-04` | ru-spb | 6243 | 8 vCPU / 16 GiB |
+| `ru-spb-bm-05` | ru-spb | 6244 | 8 vCPU / 16 GiB |
+| `ru-spb-bm-06` | ru-spb | 6245 | 16 vCPU / 32 GiB |
+| `ru-spb-bm-07` | ru-spb | 6246 | 16 vCPU / 32 GiB |
+| `ru-spb-bm-08` | ru-spb | 6247 | 16 vCPU / 32 GiB |
+| `ru-spb-bm-09` | ru-spb | 6248 | 16 vCPU / 32 GiB |
+| `ru-spb-bm-10` | ru-spb | 6249 | 16 vCPU / 32 GiB |
 
 При первом `power on` сервис клонирует VCD template, задаёт CPU/RAM профиля и
 включает VM. Пока длится клонирование, IPMI возвращает `Node Busy`; ipmitool и
@@ -88,7 +98,7 @@ kubectl -n ipmi-vcd create secret generic ipmi-vcd-ipmi \
 helm upgrade --install ipmi-vcd charts/ipmi-vcd -n ipmi-vcd --create-namespace
 ```
 
-Один LoadBalancer публикует десять UDP-портов. HTTP API остаётся ClusterIP:
+Один LoadBalancer публикует двадцать UDP-портов. HTTP API остаётся ClusterIP:
 
 - `GET /healthz`, `GET /readyz`;
 - `GET /metrics`;
@@ -122,8 +132,9 @@ openstack baremetal node create \
   --property cpu_arch=x86_64
 ```
 
-MAC-адрес порта берётся из VM/template и добавляется отдельной командой
-`openstack baremetal port create`. Полный порядок для study описан в
+MAC-адрес порта задаётся в конфигурации endpoint и добавляется командой
+`openstack baremetal port create` до создания VCD VM. При первом power-on
+адаптер применяет тот же MAC к клонированной VM. Полный порядок для study описан в
 [`docs/study.md`](docs/study.md).
 
 ## Проверки

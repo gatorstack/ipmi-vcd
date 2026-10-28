@@ -9,7 +9,14 @@ from copy import deepcopy
 from typing import Protocol
 
 import pyvcloud.vcd.client as vcd_client
-from pyvcloud.vcd.client import NSMAP, BasicLoginCredentials, Client, EntityType
+from pyvcloud.vcd.client import (
+    NSMAP,
+    BasicLoginCredentials,
+    Client,
+    E,
+    EntityType,
+    RelationType,
+)
 from pyvcloud.vcd.exceptions import EntityNotFoundException
 
 from ipmi_vcd.config import HardwareProfile, NodeConfig, VcdConfig
@@ -201,6 +208,41 @@ class VcdBackend:
             ),
         )
 
+    def _ensure_mac_address(self, client: Client, vm: VM, node: NodeConfig) -> None:
+        """Apply the declarative NIC MAC before the first VM power-on."""
+        if node.mac_address is None:
+            return
+        vm_resource = vm.get_resource()
+        section = vm_resource.NetworkConnectionSection
+        primary_index = str(section.PrimaryNetworkConnectionIndex)
+        connections = [
+            connection
+            for connection in section.NetworkConnection
+            if str(connection.NetworkConnectionIndex) == primary_index
+        ]
+        if len(connections) != 1:
+            raise BackendError(f"VCD VM {node.name} must contain one primary NIC")
+        connection = connections[0]
+        current = str(connection.MACAddress).lower()
+        if current == node.mac_address:
+            return
+        if vm.is_powered_on():
+            raise BackendError(
+                f"VCD VM {node.name} is powered on with MAC {current}, "
+                f"expected {node.mac_address}"
+            )
+        connection.MACAddress = E.MACAddress(node.mac_address)
+        self._wait(
+            client,
+            client.put_linked_resource(
+                section,
+                RelationType.EDIT,
+                EntityType.NETWORK_CONNECTION_SECTION.value,
+                section,
+            ),
+        )
+        vm.reload()
+
     def ensure_power_on(
         self,
         node: NodeConfig,
@@ -243,6 +285,7 @@ class VcdBackend:
                         vm = self._find_vm(client, node)
                         if vm is None:
                             raise BackendError(f"VCD created no VM for node {node.name}")
+                    self._ensure_mac_address(client, vm, node)
                     if prepare_for_network_boot and not created:
                         if vm.is_powered_on():
                             self._wait(client, vm.power_off())

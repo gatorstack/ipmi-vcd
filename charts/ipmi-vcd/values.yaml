@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/gatorstack/ipmi-vcd
-  tag: "v0.1.4"
+  tag: "v0.1.7"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -50,17 +50,26 @@ config:
       cpu: 16
       memoryMiB: 32768
   nodes:
-    - {name: ru-msk-bm-01, profile: 8-16, port: 6230}
-    - {name: ru-msk-bm-02, profile: 8-16, port: 6231}
-    - {name: ru-msk-bm-03, profile: 8-16, port: 6232}
-    - {name: ru-msk-bm-04, profile: 16-32, port: 6233}
-    - {name: ru-msk-bm-05, profile: 16-32, port: 6234}
-    - {name: ru-spb-bm-01, profile: 8-16, port: 6240}
-    - {name: ru-spb-bm-02, profile: 8-16, port: 6241}
-    - {name: ru-spb-bm-03, profile: 16-32, port: 6242}
-    - {name: ru-spb-bm-04, profile: 16-32, port: 6243}
-    - {name: ru-spb-bm-05, profile: 16-32, port: 6244}
-
+    - {name: ru-msk-bm-01, profile: 8-16, port: 6230, macAddress: 00:50:56:05:e9:2c}
+    - {name: ru-msk-bm-02, profile: 8-16, port: 6231, macAddress: 00:50:56:10:00:02}
+    - {name: ru-msk-bm-03, profile: 8-16, port: 6232, macAddress: 00:50:56:10:00:03}
+    - {name: ru-msk-bm-04, profile: 8-16, port: 6233, macAddress: 00:50:56:10:00:04}
+    - {name: ru-msk-bm-05, profile: 8-16, port: 6234, macAddress: 00:50:56:10:00:05}
+    - {name: ru-msk-bm-06, profile: 16-32, port: 6235, macAddress: 00:50:56:10:00:06}
+    - {name: ru-msk-bm-07, profile: 16-32, port: 6236, macAddress: 00:50:56:10:00:07}
+    - {name: ru-msk-bm-08, profile: 16-32, port: 6237, macAddress: 00:50:56:10:00:08}
+    - {name: ru-msk-bm-09, profile: 16-32, port: 6238, macAddress: 00:50:56:10:00:09}
+    - {name: ru-msk-bm-10, profile: 16-32, port: 6239, macAddress: 00:50:56:10:00:0a}
+    - {name: ru-spb-bm-01, profile: 8-16, port: 6240, macAddress: 00:50:56:05:e9:2e}
+    - {name: ru-spb-bm-02, profile: 8-16, port: 6241, macAddress: 00:50:56:20:00:02}
+    - {name: ru-spb-bm-03, profile: 8-16, port: 6242, macAddress: 00:50:56:20:00:03}
+    - {name: ru-spb-bm-04, profile: 8-16, port: 6243, macAddress: 00:50:56:20:00:04}
+    - {name: ru-spb-bm-05, profile: 8-16, port: 6244, macAddress: 00:50:56:20:00:05}
+    - {name: ru-spb-bm-06, profile: 16-32, port: 6245, macAddress: 00:50:56:20:00:06}
+    - {name: ru-spb-bm-07, profile: 16-32, port: 6246, macAddress: 00:50:56:20:00:07}
+    - {name: ru-spb-bm-08, profile: 16-32, port: 6247, macAddress: 00:50:56:20:00:08}
+    - {name: ru-spb-bm-09, profile: 16-32, port: 6248, macAddress: 00:50:56:20:00:09}
+    - {name: ru-spb-bm-10, profile: 16-32, port: 6249, macAddress: 00:50:56:20:00:0a}
 resources:
   requests:
     cpu: 100m

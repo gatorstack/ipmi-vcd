@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 _NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
+_MAC_RE = re.compile(r"^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$")
 
 
 class ConfigError(ValueError):
@@ -49,6 +50,7 @@ class NodeConfig:
     name: str
     profile: str
     port: int
+    mac_address: str | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,16 @@ def _port(value: Any, path: str) -> int:
     if port > 65535:
         raise ConfigError(f"{path} must be between 1 and 65535")
     return port
+
+
+def _mac_address(value: Any, path: str) -> str:
+    mac = _required_string(value, path).lower().replace("-", ":")
+    if not _MAC_RE.fullmatch(mac):
+        raise ConfigError(f"{path} must be a valid MAC address")
+    first_octet = int(mac[:2], 16)
+    if first_octet & 1:
+        raise ConfigError(f"{path} must be a unicast MAC address")
+    return mac
 
 
 def load_config(path: str | Path) -> AppConfig:
@@ -150,6 +162,7 @@ def load_config(path: str | Path) -> AppConfig:
     nodes: list[NodeConfig] = []
     names: set[str] = set()
     ports: set[int] = set()
+    mac_addresses: set[str] = set()
     for index, value in enumerate(nodes_raw):
         node_raw = _mapping(value, f"nodes[{index}]")
         name = _required_string(node_raw.get("name"), f"nodes[{index}].name")
@@ -157,15 +170,31 @@ def load_config(path: str | Path) -> AppConfig:
             raise ConfigError(f"nodes[{index}].name is not a valid lowercase DNS name")
         profile = _required_string(node_raw.get("profile"), f"nodes[{index}].profile")
         port = _port(node_raw.get("port"), f"nodes[{index}].port")
+        mac_address = None
+        if node_raw.get("macAddress") is not None:
+            mac_address = _mac_address(
+                node_raw.get("macAddress"), f"nodes[{index}].macAddress"
+            )
         if profile not in profiles:
             raise ConfigError(f"nodes[{index}].profile references unknown profile {profile!r}")
         if name in names:
             raise ConfigError(f"duplicate node name {name!r}")
         if port in ports:
             raise ConfigError(f"duplicate IPMI port {port}")
+        if mac_address is not None and mac_address in mac_addresses:
+            raise ConfigError(f"duplicate MAC address {mac_address!r}")
         names.add(name)
         ports.add(port)
-        nodes.append(NodeConfig(name=name, profile=profile, port=port))
+        if mac_address is not None:
+            mac_addresses.add(mac_address)
+        nodes.append(
+            NodeConfig(
+                name=name,
+                profile=profile,
+                port=port,
+                mac_address=mac_address,
+            )
+        )
 
     return AppConfig(server=server, vcd=vcd, profiles=profiles, nodes=tuple(nodes))
 
