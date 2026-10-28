@@ -149,6 +149,87 @@ class VcdBackend:
             if str(item[resource_type]) == "17"
         )
 
+    @staticmethod
+    def _rasd_value(item: object, name: str) -> str | None:
+        try:
+            return str(item[f"{{{NSMAP['rasd']}}}{name}"])
+        except (AttributeError, KeyError):
+            return None
+
+    @staticmethod
+    def _set_rasd_value(item: object, name: str, value: str) -> None:
+        item[f"{{{NSMAP['rasd']}}}{name}"]._setText(value)
+
+    def _merge_template_disk_items(
+        self, current_disks: object, template_disks: object
+    ) -> None:
+        """Merge the pristine disk while reusing controllers VCD recreated."""
+        current_items = list(getattr(current_disks, "Item", []))
+        used_ids = {
+            value
+            for item in current_items
+            if (value := self._rasd_value(item, "InstanceID")) is not None
+        }
+
+        def controller_key(item: object) -> tuple[str | None, str | None, str | None]:
+            return (
+                self._rasd_value(item, "ResourceType"),
+                self._rasd_value(item, "ResourceSubType"),
+                self._rasd_value(item, "Address"),
+            )
+
+        existing_controllers = {
+            controller_key(item): self._rasd_value(item, "InstanceID")
+            for item in current_items
+            if self._rasd_value(item, "ResourceType") != "17"
+        }
+        controller_ids: dict[str, str] = {}
+
+        def next_id() -> str:
+            candidate = max(
+                (int(value) for value in used_ids if value.isdigit()), default=0
+            ) + 1
+            while str(candidate) in used_ids:
+                candidate += 1
+            value = str(candidate)
+            used_ids.add(value)
+            return value
+
+        template_items = list(getattr(template_disks, "Item", []))
+        for item in template_items:
+            if self._rasd_value(item, "ResourceType") == "17":
+                continue
+            source_id = self._rasd_value(item, "InstanceID")
+            if source_id is None:
+                raise BackendError("VCD template controller has no InstanceID")
+            existing_id = existing_controllers.get(controller_key(item))
+            if existing_id is not None:
+                controller_ids[source_id] = existing_id
+                continue
+            controller = deepcopy(item)
+            target_id = source_id if source_id not in used_ids else next_id()
+            used_ids.add(target_id)
+            self._set_rasd_value(controller, "InstanceID", target_id)
+            current_disks.append(controller)
+            controller_ids[source_id] = target_id
+
+        for item in template_items:
+            if self._rasd_value(item, "ResourceType") != "17":
+                continue
+            disk = deepcopy(item)
+            source_parent = self._rasd_value(disk, "Parent")
+            if source_parent not in controller_ids:
+                raise BackendError(
+                    f"VCD template disk references unknown controller {source_parent!r}"
+                )
+            self._set_rasd_value(disk, "Parent", controller_ids[source_parent])
+            source_id = self._rasd_value(disk, "InstanceID")
+            if source_id is None or source_id in used_ids:
+                self._set_rasd_value(disk, "InstanceID", next_id())
+            else:
+                used_ids.add(source_id)
+            current_disks.append(disk)
+
     def _template_disk_section(self, client: Client) -> object:
         org = Org(client, resource=client.get_org())
         template_href = org.get_vapp_template_href(
@@ -199,8 +280,7 @@ class VcdBackend:
             )
 
         empty_disks = client.get_resource(current_uri)
-        for item in getattr(template_disks, "Item", []):
-            empty_disks.append(deepcopy(item))
+        self._merge_template_disk_items(empty_disks, template_disks)
         self._wait(
             client,
             client.put_resource(
