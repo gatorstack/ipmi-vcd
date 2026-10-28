@@ -119,3 +119,25 @@ def test_network_boot_turns_reset_into_prepared_power_on() -> None:
         assert result is None
         assert backend.prepare_calls == [True]
 
+
+def test_completed_power_on_rechecks_external_power_state() -> None:
+    backend = FakeBackend()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        item = controller(backend, executor)
+        assert item.set_boot_device("network") is None
+        assert item.power_on() == IPMI_NODE_BUSY
+        for _ in range(100):
+            if not item.provisioning():
+                break
+            time.sleep(0.01)
+
+        backend.powered = False
+        assert item.power_on() == IPMI_NODE_BUSY
+        for _ in range(100):
+            result = item.power_on()
+            if result is None:
+                break
+            time.sleep(0.01)
+        assert result is None
+        assert backend.prepare_calls == [True, False]
+

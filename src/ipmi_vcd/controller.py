@@ -62,8 +62,8 @@ class NodeController:
                 self._future = None
                 self._prepare_for_network_boot = False
                 self.metrics.provisioning.labels(self.node.name).set(0)
-                self._record("power_on", "success")
-                return None
+                # Re-read VCD state below. A completed background task may have
+                # been followed by an external power-state reconciliation.
 
             try:
                 if (
