@@ -104,20 +104,47 @@ class VcdBackend:
     def _vapp_name(self, node: NodeConfig) -> str:
         return f"{self.config.name_prefix}-{node.name}"
 
-    def _find_vm(self, client: Client, node: NodeConfig) -> VM | None:
+    def _find_vapp(self, client: Client, node: NodeConfig) -> VApp | None:
         vdc = self._vdc(client)
         try:
             vapp_resource = vdc.get_vapp(self._vapp_name(node))
         except EntityNotFoundException:
             return None
-        vapp = VApp(client, resource=vapp_resource)
+        return VApp(client, resource=vapp_resource)
+
+    def _find_vm(self, client: Client, node: NodeConfig) -> VM | None:
+        vapp = self._find_vapp(client, node)
+        if vapp is None:
+            return None
         try:
             vm_resource = vapp.get_vm(node.name)
-        except EntityNotFoundException as exc:
-            raise BackendError(
-                f"vApp {self._vapp_name(node)!r} exists but VM {node.name!r} is missing"
-            ) from exc
+        except EntityNotFoundException:
+            vm_names = [str(vm.get("name")) for vm in vapp.get_all_vms()]
+            if vm_names:
+                raise BackendError(
+                    f"vApp {self._vapp_name(node)!r} contains unexpected VMs: "
+                    f"{', '.join(vm_names)}"
+                ) from None
+            LOG.info("managed vApp is empty node=%s", node.name)
+            return None
         return VM(client, resource=vm_resource)
+
+    def _delete_empty_vapp(self, client: Client, node: NodeConfig) -> None:
+        """Remove an empty managed vApp so lazy VM creation can reuse its name."""
+        vapp = self._find_vapp(client, node)
+        if vapp is None:
+            return
+        vm_names = [str(vm.get("name")) for vm in vapp.get_all_vms()]
+        if vm_names:
+            raise BackendError(
+                f"refusing to replace non-empty vApp {self._vapp_name(node)!r}: "
+                f"{', '.join(vm_names)}"
+            )
+        LOG.info("deleting empty managed vApp before recreation node=%s", node.name)
+        self._wait(
+            client,
+            self._vdc(client).delete_vapp(self._vapp_name(node), force=True),
+        )
 
     @staticmethod
     def _wait(client: Client, task: object | None) -> None:
@@ -335,6 +362,7 @@ class VcdBackend:
                     vm = self._find_vm(client, node)
                     created = vm is None
                     if vm is None:
+                        self._delete_empty_vapp(client, node)
                         LOG.info(
                             "creating VCD VM node=%s profile=%s cpu=%d memoryMiB=%d",
                             node.name,

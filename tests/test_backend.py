@@ -1,6 +1,12 @@
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
 from lxml import objectify
 
-from ipmi_vcd.backend import NSMAP, VcdBackend
+import ipmi_vcd.backend as backend_module
+from ipmi_vcd.backend import NSMAP, BackendError, VcdBackend
+from ipmi_vcd.config import NodeConfig
 
 
 def disk_section(items: str) -> object:
@@ -41,3 +47,39 @@ def test_template_disk_merge_remaps_controller_recreated_by_vcd() -> None:
     assert [value(entry, "ResourceType") for entry in items] == ["5", "6", "17"]
     assert [value(entry, "InstanceID") for entry in items] == ["2", "3", "2000"]
     assert value(items[-1], "Parent") == "3"
+
+
+def test_empty_managed_vapp_is_deleted_before_recreation(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = object.__new__(VcdBackend)
+    backend.config = SimpleNamespace(name_prefix="ironic")
+    backend._wait = Mock()
+    vdc = Mock()
+    vdc.get_vapp.return_value = object()
+    vdc.delete_vapp.return_value = "delete-task"
+    backend._vdc = Mock(return_value=vdc)
+    vapp = Mock()
+    vapp.get_all_vms.return_value = []
+    monkeypatch.setattr(backend_module, "VApp", Mock(return_value=vapp))
+
+    node = NodeConfig("ru-msk-bm-01", "8-16", 6230)
+    client = object()
+    backend._delete_empty_vapp(client, node)
+
+    vdc.delete_vapp.assert_called_once_with("ironic-ru-msk-bm-01", force=True)
+    backend._wait.assert_called_once_with(client, "delete-task")
+
+
+def test_nonempty_managed_vapp_is_never_deleted(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = object.__new__(VcdBackend)
+    backend.config = SimpleNamespace(name_prefix="ironic")
+    vdc = Mock()
+    vdc.get_vapp.return_value = object()
+    backend._vdc = Mock(return_value=vdc)
+    vapp = Mock()
+    vapp.get_all_vms.return_value = [SimpleNamespace(get=lambda key: "unexpected-vm")]
+    monkeypatch.setattr(backend_module, "VApp", Mock(return_value=vapp))
+
+    node = NodeConfig("ru-msk-bm-01", "8-16", 6230)
+    with pytest.raises(BackendError, match="refusing to replace non-empty vApp"):
+        backend._delete_empty_vapp(object(), node)
+    vdc.delete_vapp.assert_not_called()
