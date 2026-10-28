@@ -34,8 +34,8 @@ config:
     url: https://vcd-az2.t1.cloud
     org: t1-cloud-dnstest-az2
     vdc: clouddns-infra2-test
-    catalog: CHANGE_ME
-    template: CHANGE_ME
+    catalog: Public-VM
+    template: Ubuntu 24.04 LTS Server cloudimg
     network: wireguard-net
     storageProfile: C02-SP-High
     verifyTLS: true

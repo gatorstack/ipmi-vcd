@@ -88,6 +88,11 @@ helm upgrade --install ipmi-vcd charts/ipmi-vcd -n ipmi-vcd --create-namespace
 Deployment намеренно имеет одну реплику: один IPMI UDP-порт нельзя одновременно
 обслуживать несколькими независимыми BMC-процессами.
 
+Study values указывают на доступный в организации catalog `Public-VM` и template
+`Ubuntu 24.04 LTS Server cloudimg`. Этого достаточно для проверки клонирования и
+power lifecycle. Для полного Ironic deploy сделайте отдельную копию template с
+порядком PXE → disk и переопределите `config.vcd.template`.
+
 ## Регистрация в Ironic
 
 Пример для endpoint `ru-msk-bm-01`, если service IP равен `10.10.0.16`:

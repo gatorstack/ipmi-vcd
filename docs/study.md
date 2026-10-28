@@ -7,6 +7,11 @@ Template содержит одну выключенную x86_64 VM с VMXNET3, 
 Helm values. Десять VM не создаются при установке сервиса: каждая появляется
 только после power-on своего endpoint.
 
+В текущей организации обнаружены catalog `Public-VM` и template
+`Ubuntu 24.04 LTS Server cloudimg`; они заданы в chart для проверки clone/power.
+Перед проверкой PXE замените template на отдельную подготовленную копию с
+сетевой загрузкой первой.
+
 ## 2. Развернуть сервис
 
 Используйте явный kubeconfig study и Kubernetes Secrets. Не добавляйте значения
