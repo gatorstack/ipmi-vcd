@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from pyghmi.ipmi.bmc import Bmc
@@ -76,6 +77,19 @@ def main() -> None:
         metrics,
     )
     api.start()
+    stop_refresh = threading.Event()
+
+    def refresh_power_states() -> None:
+        while not stop_refresh.wait(30):
+            for controller in controllers.values():
+                controller.refresh_power_state()
+
+    refresh_thread = threading.Thread(
+        target=refresh_power_states,
+        name="vcd-power-state-refresh",
+        daemon=True,
+    )
+    refresh_thread.start()
     LOG.info(
         "ready nodes=%d IPMI-address=%s HTTP=%s:%d",
         len(bmcs),
@@ -86,6 +100,8 @@ def main() -> None:
     try:
         Bmc.listen()
     finally:
+        stop_refresh.set()
+        refresh_thread.join(timeout=1)
         api.close()
         executor.shutdown(wait=False, cancel_futures=True)
 

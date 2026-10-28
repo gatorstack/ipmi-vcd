@@ -17,9 +17,15 @@ deterministic vApp + one VM per endpoint       +--> regional Ironic HTTP/API
 клонирование выполняется в thread pool, чтобы RMCP session не зависала на время
 VCD task.
 
-Состояние VM не хранится локально: источником истины служит детерминированное имя
-vApp `ironic-<node>` и VM `<node>`. После рестарта сервис находит существующую VM
-в VDC. Локально хранится одноразовый флаг подготовки PXE: его устанавливает IPMI
+Источником истины служат детерминированное имя vApp `ironic-<node>` и VM `<node>`,
+а также фактическое состояние VM в VCD. После рестарта сервис находит существующую
+VM в VDC. Адаптер хранит только оперативный cache power state, обновляя его из VCD
+в worker pool каждые 30 секунд. IPMI status всегда отвечает из cache, поэтому
+медленный ответ VCD одного endpoint не блокирует остальные endpoint. Создание VM,
+подготовка диска и power actions также выполняются в worker pool; Ironic получает
+`Node busy` и повторяет команду до завершения операции.
+
+Локально хранится одноразовый флаг подготовки PXE: его устанавливает IPMI
 `set boot device network`, а успешный `power on` сбрасывает. Подготовка заменяет
 системный диск содержимым pristine template, не меняя vApp, VM, MAC, CPU и RAM.
 После рестарта флаг равен `false`; Ironic с management interface `ipmitool`
@@ -35,7 +41,7 @@ IPMI management traffic и лабораторный PXE используют о�
 server с VM-порта, поэтому сеть работает в DHCP mode `RELAY`, а Edge DHCP
 forwarder передаёт запросы на controllers `10.10.0.17` и `10.10.0.20`.
 
-Региональные dnsmasq разделяют диапазоны: ru-msk `.90–.94`, ru-spb `.95–.99`.
+Региональные dnsmasq разделяют диапазоны: ru-msk `.90–.99`, ru-spb `.100–.109`.
 В каждом включён общий deny для неизвестных MAC и отдельные разрешения для
 зарегистрированных Ironic ports, поэтому controller другого региона и обычные
 VM ответа не получают. Первый iPXE script должен chain-load `boot.ipxe`: он

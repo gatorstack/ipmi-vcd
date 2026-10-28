@@ -54,6 +54,7 @@ bare-metal template и гарантирует PXE fallback без удалени
 - Helm chart рендерит двадцать уникальных UDP Service ports;
 - контейнер запускается без root и не содержит credentials;
 - `ipmitool` получает power state от развернутого endpoint;
+- медленный запрос power state к VCD не задерживает IPMI status других endpoint;
 - в каждом регионе Ironic создаётся хотя бы один узел, driver validation видит
   IPMI endpoint и power operation проходит через адаптер;
 - DHCP relay VCD передаёт PXE только региональным dnsmasq, которые отвечают
