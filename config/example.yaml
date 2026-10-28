@@ -1,0 +1,58 @@
+server:
+  ipmiAddress: 0.0.0.0
+  httpAddress: 0.0.0.0
+  httpPort: 8080
+
+vcd:
+  url: https://vcd-az2.t1.cloud
+  org: t1-cloud-dnstest-az2
+  vdc: clouddns-infra2-test
+  catalog: CHANGE_ME
+  template: CHANGE_ME
+  network: wireguard-net
+  storageProfile: C02-SP-High
+  verifyTLS: true
+  ipAllocationMode: dhcp
+  networkAdapterType: VMXNET3
+  namePrefix: ironic
+
+profiles:
+  8-16:
+    cpu: 8
+    memoryMiB: 16384
+  16-32:
+    cpu: 16
+    memoryMiB: 32768
+
+nodes:
+  - name: ru-msk-bm-01
+    profile: 8-16
+    port: 6230
+  - name: ru-msk-bm-02
+    profile: 8-16
+    port: 6231
+  - name: ru-msk-bm-03
+    profile: 8-16
+    port: 6232
+  - name: ru-msk-bm-04
+    profile: 16-32
+    port: 6233
+  - name: ru-msk-bm-05
+    profile: 16-32
+    port: 6234
+  - name: ru-spb-bm-01
+    profile: 8-16
+    port: 6240
+  - name: ru-spb-bm-02
+    profile: 8-16
+    port: 6241
+  - name: ru-spb-bm-03
+    profile: 16-32
+    port: 6242
+  - name: ru-spb-bm-04
+    profile: 16-32
+    port: 6243
+  - name: ru-spb-bm-05
+    profile: 16-32
+    port: 6244
+

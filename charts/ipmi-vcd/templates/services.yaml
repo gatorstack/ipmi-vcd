@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ipmi-vcd.fullname" . }}-http
+  labels:
+    {{- include "ipmi-vcd.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "ipmi-vcd.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.httpService.port }}
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ipmi-vcd.fullname" . }}-ipmi
+  labels:
+    {{- include "ipmi-vcd.labels" . | nindent 4 }}
+  {{- with .Values.ipmiService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.ipmiService.type }}
+  {{- if and (or (eq .Values.ipmiService.type "LoadBalancer") (eq .Values.ipmiService.type "NodePort")) .Values.ipmiService.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.ipmiService.externalTrafficPolicy }}
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "ipmi-vcd.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    {{- range $index, $node := .Values.config.nodes }}
+    - name: {{ printf "ipmi-%d" $index }}
+      port: {{ $node.port }}
+      targetPort: {{ $node.port }}
+      protocol: UDP
+    {{- end }}
+

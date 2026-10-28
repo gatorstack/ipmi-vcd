@@ -1,0 +1,5 @@
+prometheus-client==0.23.1
+pyghmi==1.6.19
+pyvcloud==23.0.4
+PyYAML==6.0.3
+

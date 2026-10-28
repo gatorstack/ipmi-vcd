@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ipmi-vcd"
+version = "0.1.0"
+description = "A laboratory IPMI facade backed by VMware Cloud Director VMs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "gatorstack", email = "valerahex@gmail.com" }]
+dependencies = [
+  "prometheus-client==0.23.1",
+  "pyghmi==1.6.19",
+  "pyvcloud==23.0.4",
+  "PyYAML==6.0.3",
+]
+
+[project.scripts]
+ipmi-vcd = "ipmi_vcd.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
