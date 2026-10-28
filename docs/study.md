@@ -5,8 +5,10 @@
 Template `Ironic PXE blank 20GiB` в catalog `ipmi-vcd` содержит одну выключенную
 x86_64 VM, один VMXNET3 на `wireguard-net` и пустой локальный диск 20 GiB.
 До deploy BIOS не находит ОС на диске и переходит к PXE; после записи образа
-загружается локальный диск. Десять VM не создаются при установке сервиса: каждая
-появляется только после power-on своего endpoint.
+загружается локальный диск. Перед повторным deploy адаптер заменяет этот диск
+пустым диском из template по команде Ironic `set boot device network`. Десять VM
+не создаются при установке сервиса: каждая появляется только после power-on
+своего endpoint.
 
 ## 2. Развернуть сервис
 
@@ -62,7 +64,7 @@ openstack endpoint list --service ironic
 ## 4. Зарегистрировать тестовый узел
 
 В `ru-msk` используйте endpoint `ru-msk-bm-01:6230`, в `ru-spb` —
-`ru-spb-bm-01:6240`. При создании передайте `--management-interface noop` и
+`ru-spb-bm-01:6240`. При создании передайте `--management-interface ipmitool` и
 resource class соответствующего профиля.
 
 Проверка без PXE:
@@ -82,4 +84,9 @@ openstack baremetal node show <node> -f yaml
 Nova/Neutron port должен совпадать с этой записью. Перед выдачей пользователю
 проверьте `DHCPACK`, heartbeat IPA, состояние Ironic `active`, Nova `ACTIVE` и
 загрузку ОС с локального диска.
+
+Для проверки повторного заказа удалите тестовый Nova server, дождитесь состояния
+Ironic `available`, затем создайте новый server на том же flavor. В логах
+`ipmi-vcd` должна появиться запись `replacing system disk from template before
+PXE`; прежняя ОС не должна получить DHCP до запуска IPA.
 

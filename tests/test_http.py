@@ -35,7 +35,7 @@ def test_health_and_inventory() -> None:
                     "profile": "8-16",
                     "port": 6230,
                     "provisioning": False,
-                    "bootDevice": "network",
+                    "bootDevice": "default",
                 }
             ]
         finally:

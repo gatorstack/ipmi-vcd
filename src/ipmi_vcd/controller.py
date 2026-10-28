@@ -29,7 +29,8 @@ class NodeController:
         self.metrics = metrics
         self._future: Future[None] | None = None
         self._lock = threading.Lock()
-        self._boot_device = "network"
+        self._boot_device = "default"
+        self._prepare_for_network_boot = False
 
     def _record(self, operation: str, result: str) -> None:
         self.metrics.operations.labels(self.node.name, operation, result).inc()
@@ -59,19 +60,26 @@ class NodeController:
                     LOG.exception("asynchronous power on failed for node=%s", self.node.name)
                     return IPMI_NODE_BUSY
                 self._future = None
+                self._prepare_for_network_boot = False
                 self.metrics.provisioning.labels(self.node.name).set(0)
                 self._record("power_on", "success")
                 return None
 
             try:
-                if self.backend.get_power_state(self.node):
+                if (
+                    self.backend.get_power_state(self.node)
+                    and not self._prepare_for_network_boot
+                ):
                     self._record("power_on", "success")
                     return None
             except Exception:  # noqa: BLE001
                 LOG.warning("preflight power-state check failed for node=%s", self.node.name)
 
             self._future = self.executor.submit(
-                self.backend.ensure_power_on, self.node, self.profile
+                self.backend.ensure_power_on,
+                self.node,
+                self.profile,
+                self._prepare_for_network_boot,
             )
             self.metrics.provisioning.labels(self.node.name).set(1)
             self._record("power_on", "busy")
@@ -85,6 +93,10 @@ class NodeController:
         return self._run("power_off", self.backend.power_off)
 
     def power_reset(self) -> int | None:
+        with self._lock:
+            prepare_for_network_boot = self._prepare_for_network_boot
+        if prepare_for_network_boot:
+            return self.power_on()
         if self.power_state() == 0:
             return self.power_on()
         return self._run("power_reset", self.backend.power_reset)
@@ -112,12 +124,13 @@ class NodeController:
             return IPMI_INVALID_DATA
         with self._lock:
             self._boot_device = device
-        self._record("set_boot_device", "advisory")
+            self._prepare_for_network_boot = device == "network"
+        self._record("set_boot_device", "success")
         LOG.info(
-            "stored advisory boot device node=%s device=%s; "
-            "VCD template boot order is authoritative",
+            "stored boot device node=%s device=%s prepare_for_network_boot=%s",
             self.node.name,
             device,
+            self._prepare_for_network_boot,
         )
         return None
 

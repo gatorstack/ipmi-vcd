@@ -19,8 +19,11 @@ VCD task.
 
 Состояние VM не хранится локально: источником истины служит детерминированное имя
 vApp `ironic-<node>` и VM `<node>`. После рестарта сервис находит существующую VM
-в VDC. Локально хранится только advisory boot-device; после рестарта он снова
-равен `network`, что соответствует обязательному PXE-first template.
+в VDC. Локально хранится одноразовый флаг подготовки PXE: его устанавливает IPMI
+`set boot device network`, а успешный `power on` сбрасывает. Подготовка заменяет
+системный диск содержимым pristine template, не меняя vApp, VM, MAC, CPU и RAM.
+После рестарта флаг равен `false`; Ironic с management interface `ipmitool`
+повторяет boot-device command в рамках deploy.
 
 HTTP API предназначен для probes, метрик и ручного запуска ensure. Он не
 публикуется наружу кластера. IPMI Service публикует только UDP-порты.

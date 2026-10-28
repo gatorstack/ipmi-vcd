@@ -5,10 +5,11 @@ import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from copy import deepcopy
 from typing import Protocol
 
 import pyvcloud.vcd.client as vcd_client
-from pyvcloud.vcd.client import BasicLoginCredentials, Client
+from pyvcloud.vcd.client import NSMAP, BasicLoginCredentials, Client, EntityType
 from pyvcloud.vcd.exceptions import EntityNotFoundException
 
 from ipmi_vcd.config import HardwareProfile, NodeConfig, VcdConfig
@@ -33,7 +34,12 @@ class BackendError(RuntimeError):
 class Backend(Protocol):
     def get_power_state(self, node: NodeConfig) -> bool | None: ...
 
-    def ensure_power_on(self, node: NodeConfig, profile: HardwareProfile) -> None: ...
+    def ensure_power_on(
+        self,
+        node: NodeConfig,
+        profile: HardwareProfile,
+        prepare_for_network_boot: bool = False,
+    ) -> None: ...
 
     def power_off(self, node: NodeConfig) -> None: ...
 
@@ -127,11 +133,85 @@ class VcdBackend:
         except Exception as exc:  # noqa: BLE001
             raise BackendError(f"cannot read VCD power state for {node.name}: {exc}") from exc
 
-    def ensure_power_on(self, node: NodeConfig, profile: HardwareProfile) -> None:
+    @staticmethod
+    def _hard_disk_count(disk_section: object) -> int:
+        resource_type = f"{{{NSMAP['rasd']}}}ResourceType"
+        return sum(
+            1
+            for item in getattr(disk_section, "Item", [])
+            if str(item[resource_type]) == "17"
+        )
+
+    def _template_disk_section(self, client: Client) -> object:
+        org = Org(client, resource=client.get_org())
+        template_href = org.get_vapp_template_href(
+            self.config.catalog, self.config.template
+        )
+        template = client.get_resource(template_href)
+        children = getattr(template, "Children", None)
+        vms = [
+            child
+            for child in getattr(children, "iterchildren", lambda: [])()
+            if str(child.tag).rsplit("}", 1)[-1] == "Vm"
+        ]
+        if len(vms) != 1:
+            raise BackendError(
+                f"VCD template {self.config.template!r} must contain exactly one VM"
+            )
+        return client.get_resource(
+            f"{vms[0].get('href')}/virtualHardwareSection/disks"
+        )
+
+    def _replace_system_disk_from_template(self, client: Client, vm: VM) -> None:
+        """Replace the powered-off VM disk with the pristine template disk."""
+        template_disks = self._template_disk_section(client)
+        current_uri = f"{vm.href}/virtualHardwareSection/disks"
+        current_disks = client.get_resource(current_uri)
+        if self._hard_disk_count(template_disks) != 1:
+            raise BackendError(
+                f"VCD template {self.config.template!r} must contain one hard disk"
+            )
+        current_disk_count = self._hard_disk_count(current_disks)
+        if current_disk_count > 1:
+            raise BackendError(
+                "VCD VM must contain at most one hard disk before PXE preparation"
+            )
+
+        # VCD removes an empty SCSI controller automatically. Submit the empty
+        # section first, refetch it, and then restore both the pristine
+        # controller and disk from the template in one update.
+        current_items = list(getattr(current_disks, "Item", []))
+        if current_items:
+            for item in current_items:
+                current_disks.remove(item)
+            self._wait(
+                client,
+                client.put_resource(
+                    current_uri, current_disks, EntityType.RASD_ITEMS_LIST.value
+                ),
+            )
+
+        empty_disks = client.get_resource(current_uri)
+        for item in getattr(template_disks, "Item", []):
+            empty_disks.append(deepcopy(item))
+        self._wait(
+            client,
+            client.put_resource(
+                current_uri, empty_disks, EntityType.RASD_ITEMS_LIST.value
+            ),
+        )
+
+    def ensure_power_on(
+        self,
+        node: NodeConfig,
+        profile: HardwareProfile,
+        prepare_for_network_boot: bool = False,
+    ) -> None:
         with self._node_lock(node.name):
             try:
                 with self._session() as client:
                     vm = self._find_vm(client, node)
+                    created = vm is None
                     if vm is None:
                         LOG.info(
                             "creating VCD VM node=%s profile=%s cpu=%d memoryMiB=%d",
@@ -163,6 +243,14 @@ class VcdBackend:
                         vm = self._find_vm(client, node)
                         if vm is None:
                             raise BackendError(f"VCD created no VM for node {node.name}")
+                    if prepare_for_network_boot and not created:
+                        if vm.is_powered_on():
+                            self._wait(client, vm.power_off())
+                        LOG.info(
+                            "replacing system disk from template before PXE node=%s",
+                            node.name,
+                        )
+                        self._replace_system_disk_from_template(client, vm)
                     if not vm.is_powered_on():
                         self._wait(client, vm.power_on())
             except BackendError:

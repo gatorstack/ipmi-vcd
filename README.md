@@ -33,15 +33,18 @@ Ironic повторяют команду. `power off`, `reset` и `soft off` у�
 созданной VM. VM сохраняется после выключения и используется следующей
 операцией Ironic.
 
-## Ограничение boot device
+## Boot device и повторный deploy
 
 Cloud Director tenant API не предоставляет сервису надёжного изменения BIOS/UEFI
-boot order. Поэтому команда IPMI `set boot device` принимается и запоминается,
-но фактический порядок задаёт VCD template. В study используется пустой локальный
-диск: до deploy BIOS не находит на нём ОС и переходит к PXE, после записи образа
-тот же диск становится загрузочным. Альтернативный template может иметь
-статический порядок PXE → disk. В Ironic для этих узлов используется management
-interface `noop`.
+boot order. Поэтому Ironic использует management interface `ipmitool`, а адаптер
+трактует `set boot device network` как одноразовую подготовку к deploy. При
+следующем `power on` существующая выключенная VM получает новый пустой системный
+диск из VCD template и только затем включается. После записи образа команды
+`set boot device hd`, обычный stop/start и reset диск не меняют.
+
+Так VM и её MAC сохраняются между заказами, но данные предыдущего пользователя
+стираются ровно при начале нового PXE deploy. Если адаптер перезапустился между
+`set boot device network` и `power on`, Ironic повторяет boot-device command.
 
 ## Конфигурация
 
@@ -108,7 +111,7 @@ relay, адресные диапазоны и MAC allowlist описаны в [`
 openstack baremetal node create \
   --name ru-msk-bm-01 \
   --driver ipmi \
-  --management-interface noop \
+  --management-interface ipmitool \
   --resource-class gator_8_16 \
   --driver-info ipmi_address=10.10.0.16 \
   --driver-info ipmi_port=6230 \
