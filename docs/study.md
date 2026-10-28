@@ -2,15 +2,11 @@
 
 ## 1. Подготовить VCD template
 
-Template содержит одну выключенную x86_64 VM с VMXNET3, локальным диском и
-статическим порядком PXE → disk. Запишите точные имена catalog и template в
-Helm values. Десять VM не создаются при установке сервиса: каждая появляется
-только после power-on своего endpoint.
-
-В текущей организации обнаружены catalog `Public-VM` и template
-`Ubuntu 24.04 LTS Server cloudimg`; они заданы в chart для проверки clone/power.
-Перед проверкой PXE замените template на отдельную подготовленную копию с
-сетевой загрузкой первой.
+Template `Ironic PXE blank 20GiB` в catalog `ipmi-vcd` содержит одну выключенную
+x86_64 VM, один VMXNET3 на `wireguard-net` и пустой локальный диск 20 GiB.
+До deploy BIOS не находит ОС на диске и переходит к PXE; после записи образа
+загружается локальный диск. Десять VM не создаются при установке сервиса: каждая
+появляется только после power-on своего endpoint.
 
 ## 2. Развернуть сервис
 
@@ -29,10 +25,31 @@ ipmitool -I lanplus -H 10.10.0.16 -p 6230 \
 ## 3. Установить Ironic в регионы
 
 Kolla в каждом регионе включает Ironic API, conductor, HTTP/TFTP/dnsmasq и
-отдельный `nova-compute-ironic`. Не привязывайте dnsmasq к management interface
-`ens192`: это общая сеть действующих VM. Для лабораторной регистрации используйте
-изолированный provisioning interface. Полный PXE потребует отдельного VCD L2
-segment и второго NIC у controller и template.
+отдельный `nova-compute-ironic`. В этой лаборатории dnsmasq привязан к `ens192`,
+но не обслуживает общую сеть напрямую: VCD сеть `wireguard-net` использует DHCP
+mode `RELAY`, а Edge DHCP forwarder направляет запросы только на controllers:
+
+| Регион | Controller | DHCP pool | MAC allowlist |
+|---|---|---|---|
+| ru-msk | `10.10.0.17` | `10.10.0.90–10.10.0.94` | `ironic_dhcp_hosts` |
+| ru-spb | `10.10.0.20` | `10.10.0.95–10.10.0.99` | `ironic_dhcp_hosts` |
+
+В каждом `ironic_dhcp_hosts` обязательна wildcard-запись `ignore` и точная
+запись `MAC,IP` для каждого зарегистрированного узла. Неизвестные VM и MAC
+другого региона игнорируются. Neutron network `ironic-cleaning` использует
+`10.10.0.0/24`, соответствующий региональный pool, gateway `10.10.0.1` и
+выключенный DHCP.
+
+Kolla по умолчанию направляет второй этап iPXE на inspection script. Для deploy
+создайте `/etc/kolla/config/ironic/ipa.ipxe`:
+
+```ipxe
+#!ipxe
+chain http://CONTROLLER_IP:8089/boot.ipxe
+```
+
+`boot.ipxe` выбирает per-node config и передаёт IPA правильный
+`ipa-api-url=http://CONTROLLER_IP:6385`.
 
 После Kolla deploy проверьте service catalog и conductor:
 
@@ -60,6 +77,9 @@ openstack baremetal node show <node> -f yaml
 Успех подтверждается одновременно состоянием `power on` в Ironic, созданной VM
 в VCD и метрикой `ipmi_vcd_operations_total`.
 
-Добавлять MAC и переводить узел в `available` нужно только после готовности
-общего provisioning L2. Регистрация BMC сама по себе этого не требует.
+После первого power-on получите MAC созданной VCD VM, создайте Ironic port и
+добавьте тот же MAC с выбранным IP в allowlist регионального dnsmasq. Fixed IP
+Nova/Neutron port должен совпадать с этой записью. Перед выдачей пользователю
+проверьте `DHCPACK`, heartbeat IPA, состояние Ironic `active`, Nova `ACTIVE` и
+загрузку ОС с локального диска.
 

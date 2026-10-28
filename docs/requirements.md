@@ -27,9 +27,10 @@ Ironic hardware type `ipmi` и не знает о VCD.
 - пять узлов профиля `16-32`: 16 vCPU, 32 GiB RAM;
 - пять endpoint выделено `ru-msk`, пять — `ru-spb`.
 
-Размер локального диска наследуется от VCD template. Это предотвращает запуск
-guest customization при клонировании и оставляет размер диска единым свойством
-подготовленного bare-metal template.
+Размер пустого локального диска наследуется от VCD template. Это предотвращает
+запуск guest customization при клонировании, позволяет BIOS перейти к PXE до
+deploy и оставляет размер диска единым свойством подготовленного bare-metal
+template.
 
 ## Не входит в первую версию
 
@@ -47,5 +48,9 @@ guest customization при клонировании и оставляет раз
 - контейнер запускается без root и не содержит credentials;
 - `ipmitool` получает power state от развернутого endpoint;
 - в каждом регионе Ironic создаётся хотя бы один узел, driver validation видит
-  IPMI endpoint и power operation проходит через адаптер.
+  IPMI endpoint и power operation проходит через адаптер;
+- DHCP relay VCD передаёт PXE только региональным dnsmasq, которые отвечают
+  зарегистрированным MAC из allowlist;
+- тестовый Nova server проходит `available → deploying → active`, а записанная
+  на пустой диск ОС загружается с IP, совпадающим с Neutron port.
 

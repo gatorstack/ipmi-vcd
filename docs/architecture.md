@@ -2,14 +2,14 @@
 
 ```text
 Ironic conductor (ru-msk / ru-spb)
-        |
-        | RMCP+ / IPMI 2.0, UDP 6230..6244
-        v
-ipmi-vcd in Kubernetes study (10.10.0.16)
-        |
-        | VMware Cloud Director API
-        v
-deterministic vApp + one VM per endpoint
+        |                                      VCD Edge DHCP forwarder
+        | RMCP+ / IPMI 2.0                     10.10.0.17, 10.10.0.20
+        v                                                |
+ipmi-vcd in Kubernetes study (10.10.0.16)                |
+        |                                                v
+        | VMware Cloud Director API       PXE VM on wireguard-net
+        v                                      |
+deterministic vApp + one VM per endpoint       +--> regional Ironic HTTP/API
 ```
 
 Каждый `pyghmi.Bmc` слушает собственный UDP-порт, но все экземпляры работают в
@@ -25,11 +25,21 @@ vApp `ironic-<node>` и VM `<node>`. После рестарта сервис н
 HTTP API предназначен для probes, метрик и ручного запуска ensure. Он не
 публикуется наружу кластера. IPMI Service публикует только UDP-порты.
 
-## Границы сетевой модели
+## PXE в study
 
-IPMI management traffic идёт по сети study `10.10.0.0/24`. PXE/DHCP — отдельный
-data-plane и должен быть спроектирован независимо. Простая регистрация и
-проверка питания не доказывают, что образ может быть развернут. Для полного
-deploy VCD VM и Ironic conductor должны иметь общий L2 provisioning segment без
-конфликтующего DHCP.
+IPMI management traffic и лабораторный PXE используют общий VCD L2
+`wireguard-net` (`10.10.0.0/24`). NSX не пропускает ответы произвольного DHCP
+server с VM-порта, поэтому сеть работает в DHCP mode `RELAY`, а Edge DHCP
+forwarder передаёт запросы на controllers `10.10.0.17` и `10.10.0.20`.
+
+Региональные dnsmasq разделяют диапазоны: ru-msk `.90–.94`, ru-spb `.95–.99`.
+В каждом включён общий deny для неизвестных MAC и отдельные разрешения для
+зарегистрированных Ironic ports, поэтому controller другого региона и обычные
+VM ответа не получают. Первый iPXE script должен chain-load `boot.ipxe`: он
+выбирает сгенерированный Ironic per-node config с `ipa-api-url`, а общий
+inspection-only `ipa.ipxe` для deploy не подходит.
+
+Neutron cleaning network использует тот же CIDR только как адресный реестр с
+выключенным Neutron DHCP. Fixed IP Nova port должен совпадать с записью dnsmasq;
+пакеты идут по VCD L2, а не через Neutron VXLAN.
 

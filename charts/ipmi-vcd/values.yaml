@@ -34,8 +34,8 @@ config:
     url: https://vcd-az2.t1.cloud
     org: t1-cloud-dnstest-az2
     vdc: clouddns-infra2-test
-    catalog: Public-VM
-    template: Ubuntu 24.04 LTS Server cloudimg
+    catalog: ipmi-vcd
+    template: Ironic PXE blank 20GiB
     network: wireguard-net
     storageProfile: C02-SP-High
     verifyTLS: true

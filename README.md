@@ -37,10 +37,11 @@ Ironic повторяют команду. `power off`, `reset` и `soft off` у�
 
 Cloud Director tenant API не предоставляет сервису надёжного изменения BIOS/UEFI
 boot order. Поэтому команда IPMI `set boot device` принимается и запоминается,
-но фактический порядок задаёт VCD template. Для развертывания ОС template должен
-иметь сетевую загрузку первой, а локальный диск второй. В Ironic для этих узлов
-следует использовать management interface `noop`, чтобы статический порядок
-оставался источником истины.
+но фактический порядок задаёт VCD template. В study используется пустой локальный
+диск: до deploy BIOS не находит на нём ОС и переходит к PXE, после записи образа
+тот же диск становится загрузочным. Альтернативный template может иметь
+статический порядок PXE → disk. В Ironic для этих узлов используется management
+interface `noop`.
 
 ## Конфигурация
 
@@ -55,8 +56,10 @@ boot order. Поэтому команда IPMI `set boot device` принима�
 завершает запуск с ошибкой при более длинных значениях, чтобы `ipmitool` и
 Ironic не получили endpoint, к которому невозможно войти.
 
-VCD template должен содержать ровно одну VM, один сетевой адаптер и локальный
-диск достаточного размера. Guest customization в template должен быть выключен.
+VCD template должен содержать ровно одну выключенную VM, один VMXNET3 и пустой
+локальный диск достаточного размера. Guest customization в template должен быть
+выключен. Study использует catalog `ipmi-vcd` и template
+`Ironic PXE blank 20GiB`.
 
 Локальный запуск:
 
@@ -92,10 +95,10 @@ helm upgrade --install ipmi-vcd charts/ipmi-vcd -n ipmi-vcd --create-namespace
 Deployment намеренно имеет одну реплику: один IPMI UDP-порт нельзя одновременно
 обслуживать несколькими независимыми BMC-процессами.
 
-Study values указывают на доступный в организации catalog `Public-VM` и template
-`Ubuntu 24.04 LTS Server cloudimg`. Этого достаточно для проверки клонирования и
-power lifecycle. Для полного Ironic deploy сделайте отдельную копию template с
-порядком PXE → disk и переопределите `config.vcd.template`.
+Study values указывают на private catalog `ipmi-vcd` и template
+`Ironic PXE blank 20GiB`. VM подключается к `wireguard-net`; PXE запросы проходят
+через штатный DHCP relay VCD к региональному Ironic dnsmasq. Точные параметры
+relay, адресные диапазоны и MAC allowlist описаны в [`docs/study.md`](docs/study.md).
 
 ## Регистрация в Ironic
 
