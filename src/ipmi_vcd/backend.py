@@ -54,7 +54,15 @@ class VcdBackend:
 
     @contextmanager
     def _session(self) -> Iterator[Client]:
-        kwargs = {"verify_ssl_certs": self.config.verify_tls}
+        kwargs = {
+            "verify_ssl_certs": self.config.verify_tls,
+            # Client creates its own file handler even when request logging is
+            # disabled. /tmp is an emptyDir in the read-only-root deployment.
+            "log_file": "/tmp/vcd_pysdk.log",
+            "log_requests": False,
+            "log_headers": False,
+            "log_bodies": False,
+        }
         if self.config.api_version:
             kwargs["api_version"] = self.config.api_version
         client = Client(self.config.url, **kwargs)
